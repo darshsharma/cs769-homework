@@ -36,18 +36,47 @@ class BertSelfAttention(nn.Module):
 
   def attention(self, key, query, value, attention_mask):
     # each attention is calculated following eq (1) of https://arxiv.org/pdf/1706.03762.pdf
-    # attention scores are calculated by multiply query and key 
+    # attention scores are calculated by multiply query and key
     # and get back a score matrix S of [bs, num_attention_heads, seq_len, seq_len]
     # S[*, i, j, k] represents the (unnormalized)attention score between the j-th and k-th token, given by i-th attention head
     # before normalizing the scores, use the attention mask to mask out the padding token scores
-    # Note again: in the attention_mask non-padding tokens with 0 and padding tokens with a large negative number 
+    # Note again: in the attention_mask non-padding tokens with 0 and padding tokens with a large negative number
+
+    # Calculate attention scores: Q @ K^T
+    # query: [bs, num_attention_heads, seq_len, attention_head_size]
+    # key: [bs, num_attention_heads, seq_len, attention_head_size]
+    # scores: [bs, num_attention_heads, seq_len, seq_len]
+    attention_scores = torch.matmul(query, key.transpose(-1, -2))
+
+    # Scale by sqrt(d_k)
+    attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+
+    # Apply attention mask (add mask to scores before softmax)
+    # attention_mask: [bs, 1, 1, seq_len]
+    # Broadcasting will handle the dimensions
+    attention_scores = attention_scores + attention_mask
 
     # normalize the scores
+    attention_probs = nn.functional.softmax(attention_scores, dim=-1)
 
-    # multiply the attention scores to the value and get back V' 
+    # Apply dropout
+    #attention_probs = self.dropout(attention_probs)
+
+    # multiply the attention scores to the value and get back V'
+    # attention_probs: [bs, num_attention_heads, seq_len, seq_len]
+    # value: [bs, num_attention_heads, seq_len, attention_head_size]
+    # attn_value: [bs, num_attention_heads, seq_len, attention_head_size]
+    attn_value = torch.matmul(attention_probs, value)
 
     # next, we need to concat multi-heads and recover the original shape [bs, seq_len, num_attention_heads * attention_head_size = hidden_size]
-    raise NotImplementedError
+    # Transpose: [bs, num_attention_heads, seq_len, attention_head_size] -> [bs, seq_len, num_attention_heads, attention_head_size]
+    attn_value = attn_value.transpose(1, 2)
+
+    # Reshape to concatenate heads: [bs, seq_len, num_attention_heads * attention_head_size]
+    bs, seq_len = attn_value.shape[:2]
+    attn_value = attn_value.reshape(bs, seq_len, self.all_head_size)
+
+    return attn_value
 
   def forward(self, hidden_states, attention_mask):
     """
@@ -86,11 +115,17 @@ class BertLayer(nn.Module):
     input: the input
     output: the input that requires the Sublayer to transform
     dense_layer, dropput: the Sublayer
-    ln_layer: layer norm that takes input+sublayer(output) 
+    ln_layer: layer norm that takes input+sublayer(output)
     This function computes ``LayerNorm(input + Sublayer(output))``, where sublayer is a dense_layer followed by dropout.
     """
-    # todo
-    raise NotImplementedError
+    # Apply the sublayer: dense_layer followed by dropout
+    output = dense_layer(output)
+    output = dropout(output)
+
+    # Add residual connection and apply layer norm
+    output = ln_layer(input + output)
+
+    return output
 
   def forward(self, hidden_states, attention_mask):
     """
@@ -102,17 +137,29 @@ class BertLayer(nn.Module):
     3. a feed forward layer
     4. a add-norm that takes the output of feed forward layer and the input of feed forward layer
     """
-    # todo
-    # multi-head attention w/ self.self_attention
+    # 1. multi-head attention w/ self.self_attention
+    attention_output = self.self_attention(hidden_states, attention_mask)
 
-    # add-norm layer
+    # 2. add-norm layer
+    # input: original hidden_states, output: attention_output
+    # sublayer: self.attention_dense + self.attention_dropout
+    attention_output = self.add_norm(hidden_states, attention_output,
+                                     self.attention_dense, self.attention_dropout,
+                                     self.attention_layer_norm)
 
-    # feed forward
+    # 3. feed forward
+    # Apply intermediate dense layer followed by GELU activation
+    ff_output = self.interm_dense(attention_output)
+    ff_output = self.interm_af(ff_output)
 
-    # another add-norm layer
+    # 4. another add-norm layer
+    # input: attention_output (from step 2), output: ff_output
+    # sublayer: self.out_dense + self.out_dropout
+    output = self.add_norm(attention_output, ff_output,
+                          self.out_dense, self.out_dropout,
+                          self.out_layer_norm)
 
-
-    raise NotImplementedError
+    return output
 
 
 class BertModel(BertPreTrainedModel):
@@ -151,26 +198,28 @@ class BertModel(BertPreTrainedModel):
     seq_length = input_shape[1]
 
     # get word embedding from self.word_embedding
-    # todo
-    inputs_embeds = None
-
+    # input_ids: [bs, seq_len] -> inputs_embeds: [bs, seq_len, hidden_size]
+    inputs_embeds = self.word_embedding(input_ids)
 
     # get position index and position embedding from self.pos_embedding
+    # position_ids is already registered as a buffer with shape [1, max_position_embeddings]
     pos_ids = self.position_ids[:, :seq_length]
-    pos_embeds = None
+    # pos_ids: [1, seq_len] -> pos_embeds: [1, seq_len, hidden_size]
+    pos_embeds = self.pos_embedding(pos_ids)
 
     # get token type ids, since we are not consider token type, just a placeholder
     tk_type_ids = torch.zeros(input_shape, dtype=torch.long, device=input_ids.device)
     tk_type_embeds = self.tk_type_embedding(tk_type_ids)
 
     # add three embeddings together
+    # Broadcasting handles the position embedding dimension
     embeds = inputs_embeds + tk_type_embeds + pos_embeds
 
     # layer norm and dropout
     embeds = self.embed_layer_norm(embeds)
     embeds = self.embed_dropout(embeds)
 
-    raise NotImplementedError
+    return embeds
 
   def encode(self, hidden_states, attention_mask):
     """
