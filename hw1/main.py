@@ -20,7 +20,7 @@ def get_args():
     parser.add_argument("--hid_size", type=int, default=300)
     parser.add_argument("--hid_layer", type=int, default=3)
     parser.add_argument("--word_drop", type=float, default=0.3)
-    parser.add_argument("--emb_drop", type=float, default=0.333)
+    parser.add_argument("--emb_drop", type=float, default=0.2)
     parser.add_argument("--hid_drop", type=float, default=0.333)
     parser.add_argument("--pooling_method", type=str, default="avg", choices=["sum", "avg", "max"])
     parser.add_argument("--grad_clip", type=float, default=5.0)
@@ -79,7 +79,9 @@ def pad_sentences(sents, pad_id):
     Return:
         aug_sents: list(list(int)), |s_1| == |s_i|, for s_i in sents
     """
-    raise NotImplementedError()
+    max_len = max([len(s) for s in sents])
+    aug_sents = [s + [pad_id] * (max_len-len(s)) for s in sents]
+    return aug_sents
 
 def compute_grad_norm(model, norm_type=2):
     """

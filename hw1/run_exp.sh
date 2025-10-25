@@ -1,5 +1,5 @@
 # Step 0. Change this to your campus ID
-CAMPUSID='9xx1234567'
+CAMPUSID='9087505559'
 mkdir -p $CAMPUSID
 
 # Step 1. (Optional) Any preprocessing step, e.g., downloading pre-trained word embeddings
@@ -15,7 +15,10 @@ python main.py \
     --test "data/${PREF}-test.txt" \
     --dev_output "${CAMPUSID}/${PREF}-dev-output.txt" \
     --test_output "${CAMPUSID}/${PREF}-test-output.txt" \
+    --emb_file "glove.6B.300d.txt" \
     --model "${CAMPUSID}/${PREF}-model.pt"
+
+
 
 ##  2.2 Run experiments on CF-IMDB
 PREF='cfimdb'
@@ -25,7 +28,8 @@ python main.py \
     --test "data/${PREF}-test.txt" \
     --dev_output "${CAMPUSID}/${PREF}-dev-output.txt" \
     --test_output "${CAMPUSID}/${PREF}-test-output.txt" \
-    --model "${CAMPUSID}/${PREF}-model.pt"
+    --model "${CAMPUSID}/${PREF}-model.pt" \
+    --max_train_epoch 10
 
 
 # Step 3. Prepare submission:

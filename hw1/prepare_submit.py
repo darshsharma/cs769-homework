@@ -7,7 +7,10 @@ import sys
 import zipfile
 
 required_files = {'main.py', 'model.py', 'vocab.py', 'sst-dev-output.txt', 'sst-test-output.txt', 'cfimdb-dev-output.txt', 'cfimdb-test-output.txt', 'run_exp.sh'}
+<<<<<<< HEAD
 
+=======
+>>>>>>> d790aad (hw1 changes.)
 def check_file(file: str, check_aid: str):
     target_prefix = None
     # --
