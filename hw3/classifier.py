@@ -59,7 +59,10 @@ class BertSentClassifier(torch.nn.Module):
         # logits shape: [batch_size, num_labels]
         logits = self.classifier(pooled_output)
 
-        return logits
+        # Apply log_softmax since the training loop uses F.nll_loss which expects log-probabilities
+        log_probs = F.log_softmax(logits, dim=1)
+
+        return log_probs
 
 # create a custom Dataset Class to be used for the dataloader
 class BertDataset(Dataset):

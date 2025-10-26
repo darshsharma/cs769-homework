@@ -60,7 +60,7 @@ class BertSelfAttention(nn.Module):
     attention_probs = nn.functional.softmax(attention_scores, dim=-1)
 
     # Apply dropout
-    #attention_probs = self.dropout(attention_probs)
+    attention_probs = self.dropout(attention_probs)
 
     # multiply the attention scores to the value and get back V'
     # attention_probs: [bs, num_attention_heads, seq_len, seq_len]
